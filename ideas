@@ -3,3 +3,8 @@
 2. Not using git at full - leverage git more
 
 3. make swagger more descriptive...
+
+
+
+corsConfig.addAllowedOrigin("*");
+corsConfig.addAllowedHeader("*");
