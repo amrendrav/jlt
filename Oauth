@@ -1,0 +1,158 @@
+One can add it for better swagger detailing:
+@ApiOperation(value = "searchCallHistory", notes = "Search for call history rows in the database by search criteria")
+
+Why no this for Authentication?
+@AuthenticationPrincipal User authenticatedUser
+
+
+/*
+ * Copyright 2014-2015 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.getabby.ap.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
+import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
+import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
+
+import com.getabby.ap.config.constants.AuthoritiesConstants;
+import com.getabby.ap.controller.constants.ControllerURLConstants;
+import com.getabby.ap.service.UserService;
+
+@Configuration
+public class OAuth2ServerConfiguration {
+
+    private static final String RESOURCE_ID = "restservice";
+
+    @Configuration
+    @EnableResourceServer
+    @Order(SecurityProperties.ACCESS_OVERRIDE_ORDER)
+    protected static class ResourceServerConfiguration extends
+            ResourceServerConfigurerAdapter {
+
+        @Override
+        public void configure(ResourceServerSecurityConfigurer resources) {
+            // @formatter:off
+            resources
+                    .resourceId(RESOURCE_ID);
+            // @formatter:on
+        }
+
+        @Override
+        public void configure(HttpSecurity http) throws Exception {
+
+            http
+                    .authorizeRequests()
+                    .antMatchers("/swagger").anonymous()
+                    .antMatchers(ControllerURLConstants.MEDIA_ENDPOINT + "/token/**").anonymous()
+                    .antMatchers(ControllerURLConstants.CONTACTS_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.PROMPTINFO_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.CAMPAIGNS_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.MEDIA_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.INTERNAL_DONOTCALL_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.MEDIA_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.PROFILE_ENDPOINT + "/**").authenticated()
+                    .antMatchers(ControllerURLConstants.COMPANIES_ENDPOINT + "/all").authenticated()
+                    .antMatchers(ControllerURLConstants.COMPANIES_ENDPOINT + "/**").hasRole("ADMIN")
+                    .antMatchers(ControllerURLConstants.USERS_ENDPOINT + "/**").hasRole("ADMIN");
+
+        }
+    }
+
+    @Configuration
+    @EnableAuthorizationServer
+    public static class AuthorizationServerConfiguration extends
+            AuthorizationServerConfigurerAdapter {
+
+        @Value("${oauth2.getabby.client.id}")
+        private String getAbbyClientId;
+
+        @Value("${oauth2.getabby.client.secret}")
+        private String getAbbyClientSecret;
+
+        private TokenStore tokenStore;
+
+        @Bean
+        public TokenStore tokenStore() {
+            return new InMemoryTokenStore();
+        }
+
+        @Autowired
+        @Qualifier("authenticationManagerBean")
+        private AuthenticationManager authenticationManager;
+
+        @SuppressWarnings("SpringJavaAutowiringInspection")
+        @Autowired
+        private UserService userService;
+
+        @Override
+        public void configure(AuthorizationServerEndpointsConfigurer endpoints)
+                throws Exception {
+            // @formatter:off
+            endpoints
+                    .tokenStore(this.tokenStore)
+                    .authenticationManager(this.authenticationManager)
+                    .userDetailsService(userService);
+            // @formatter:on
+        }
+
+        @Override
+        public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+            // @formatter:off
+            clients
+                    .inMemory()
+                    .withClient(getAbbyClientId)
+                    .authorizedGrantTypes("password", "refresh_token")
+                    .authorities(AuthoritiesConstants.ADMIN, AuthoritiesConstants.USER)
+                    .scopes("read", "write", "trust")
+                    .resourceIds(RESOURCE_ID)
+                    .secret(getAbbyClientSecret);
+            // @formatter:on
+        }
+
+        @Autowired
+        public void setTokenStore(TokenStore tokenStore) {
+            this.tokenStore = tokenStore;
+        }
+
+        @Bean
+        @Primary
+        public DefaultTokenServices tokenServices() {
+            DefaultTokenServices tokenServices = new DefaultTokenServices();
+            tokenServices.setSupportRefreshToken(true);
+            tokenServices.setTokenStore(this.tokenStore);
+            return tokenServices;
+        }
+
+    }
+
+}
