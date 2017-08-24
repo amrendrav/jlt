@@ -1,0 +1,429 @@
+package com.tii.kb.service;
+
+import java.io.UnsupportedEncodingException;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.transaction.Transactional;
+
+import com.tii.kb.entity.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.SpringApplicationConfiguration;
+import org.springframework.boot.test.TestRestTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.util.Assert;
+import org.springframework.web.client.RestTemplate;
+
+import com.tii.core.domain.nlp.POS;
+import com.tii.core.domain.nlp.Tag;
+import com.tii.core.exception.TiiBusinessException;
+import com.tii.kb.TestKBServiceAppContext;
+import com.tii.kb.domain.Campaign;
+import com.tii.kb.domain.RankedQuestion;
+import com.tii.kb.domain.SchedulerSettings;
+import com.tii.kb.util.KBBuilder;
+import com.tii.kb.util.KBBuilderService;
+import com.tii.kb.util.TestUtils;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@SpringApplicationConfiguration(classes = { TestKBServiceAppContext.class })
+@Transactional
+public class KBServiceTests {
+
+	private String answerTypeJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":\"PERSON_ORGANIZATION\"}";
+	private String tagJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":[{\"value\":\"president\",\"partOfSpeech\":\"NN\"},{\"value\":\"russia\",\"partOfSpeech\":\"NN\"},{\"value\":\"run\",\"partOfSpeech\":\"JJS\"}]}";
+	private String responseRank = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":{\"response\":\"how are you\",\"rank\":1.2}}";
+
+	static {
+		System.setProperty("eureka.client.enabled", "false");
+	}
+
+	@Autowired
+	private KBService kbService;
+
+	@Autowired
+	private KBBuilderService kbBuilderService;
+
+	@Autowired
+	private InteractionService interactionService;
+
+	private KBBuilder kbBuilder;
+
+	private Response notFoundResponse;
+	private Response response;
+	private Question q1;
+	private final Long campaignId = 9999L;
+	private final String question1Text = "who is the president of russia 12034808";
+	private final String question2Text = "who is the president of the united states 12034808";
+
+	@Autowired
+	private RestTemplate mockRestTemplate;
+
+	private MockRestServiceServer mockServer;
+
+	@Before
+	public void setup() throws Exception {
+		mockServer = MockRestServiceServer.createServer(mockRestTemplate);
+		kbBuilder = kbBuilderService.getBuilder();
+		q1 = kbBuilder.withResponse(true).build(question1Text, mockRestTemplate, 1, answerTypeJson, tagJson);
+		response = kbBuilder.response;
+
+		// create not found response for campaign
+		notFoundResponse = new Response("uncategorized_no_response_found", campaignId);
+		notFoundResponse.addResponseDetailToList(new ResponseDetail("text", 0, "I'm sorry, I didn't get that"));
+	}
+
+	@After
+	public void verify() {
+		//mockServer.verify();
+	}
+
+	@Test
+	public void testGetResponseById() throws Exception {
+		Response r = kbService.getResponseById(response.getId());
+		Assert.isTrue(r != null);
+		Assert.isTrue(r.getId().equals(response.getId()));
+	}
+
+    @Test
+    public void testGetResponseByIdAndHandleResponse() throws Exception {
+        Response r = kbService.getResponseByIdAndHandleResponse(response.getId(), null);
+        Assert.isTrue(r != null);
+        Assert.isTrue(r.getId().equals(response.getId()));
+    }
+
+	@Test
+	public void testGetResponseByNameAndHandleResponse() throws Exception {
+		Interaction interaction = interactionService.getInteraction("testUniqueId", campaignId);
+		Response r = kbService.getResponseByNameAndInteractionIdAndHandleResponse(response.getName(), interaction.getId());
+		Assert.isTrue(r != null);
+		Assert.isTrue(r.getId().equals(response.getId()));
+	}
+
+	@Test
+	public void testGetResponseByName() throws Exception {
+		Response r = kbService.getResponseByName(response.getName());
+		Assert.isTrue(r != null);
+		Assert.isTrue(r.getId().equals(response.getId()));
+	}
+
+	@Test
+	public void testCreateResponse() throws Exception {
+		Response r = new Response("new response name blahblahb lha");
+		r.setCampaignId(campaignId);
+		// responseDetails
+		ResponseDetail rd1 = new ResponseDetail("title1", 0, "some string content");
+		ResponseDetail rd2 = new ResponseDetail("title2", 1, "some string content2");
+		Set<ResponseDetail> responseDetails = new HashSet<>();
+		responseDetails.add(rd1);
+		responseDetails.add(rd2);
+		r.setResponseDetails(responseDetails);
+
+		r = kbService.createResponse(r);
+		Assert.isTrue(r.getId() != null);
+	}
+
+	@Test
+	public void testUpdateResponse() throws Exception {
+		response.setName(response.getName() + "-update");
+		kbService.updateResponse(response);
+		Response r = kbService.getResponseById(response.getId());
+		Assert.isTrue(r != null);
+		Assert.isTrue(r.getName().equals(response.getName()));
+	}
+
+	@Test
+	public void testDeleteResponse() throws Exception {
+		answerTypeJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":\"PERSON_ORGANIZATION\"}";
+		tagJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":[{\"value\":\"president\",\"partOfSpeech\":\"NN\"},{\"value\":\"united states\",\"partOfSpeech\":\"NN\"},{\"value\":\"who\",\"partOfSpeech\":\"JJS\"}]}";
+		Question q = kbBuilder.withResponse(true).build(question2Text, mockRestTemplate, 2, answerTypeJson, tagJson);
+		Response r = q.getResponse();
+
+		Assert.isTrue(kbService.deleteResponse(r.getId()));
+		Assert.isTrue(kbService.getResponseById(r.getId()) == null);
+		// Assert.isTrue(q1.getId() == null);
+	}
+
+	@Test
+	public void testGetQuestionById() throws Exception {
+		Question q = kbService.getQuestionById(q1.getId());
+		Assert.isTrue(q != null);
+		Assert.isTrue(q.getQuestionText().equals(q1.getQuestionText()));
+	}
+
+	@Test
+	public void testGetQuestionByText() throws Exception {
+		Question q = kbService.getQuestionByText(question1Text);
+		Assert.isTrue(q != null);
+		Assert.isTrue(q.getId().equals(q1.getId()));
+	}
+
+	@Test
+	public void testGetResponseByCampaignId() throws Exception {
+		String responseSearchText = "";
+		Pageable pageable = new PageRequest(0, 20);
+		Response r1 = kbBuilder.buildResponse(campaignId, true);
+		//    	Response r2 = kbBuilder.buildResponse(campaignId); // system = false
+		Page<Response> pageResponse = kbService.getAvailableResponsesByCampaignId(campaignId, responseSearchText, pageable);
+		List<Response> responses = pageResponse.getContent();
+		Assert.isTrue(responses != null);
+		for (java.util.Iterator<Response> it = responses.iterator(); it.hasNext();) {
+			Response response = it.next();
+			Assert.isTrue(response != null);
+			Assert.isTrue(response.getCampaignId() == campaignId);
+			Assert.isTrue(!response.getSystem());
+		}
+	}
+
+	@Test
+	public void testCreateQuestion() throws Exception {
+		answerTypeJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":\"PERSON_ORGANIZATION\"}";
+		tagJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":[{\"value\":\"president\",\"partOfSpeech\":\"NN\"},{\"value\":\"united states\",\"partOfSpeech\":\"NN\"},{\"value\":\"who\",\"partOfSpeech\":\"JJS\"}]}";
+		Question q = kbBuilder.withResponse(true).build(question2Text, mockRestTemplate, 1, answerTypeJson, tagJson);
+		//mockServer.verify();
+		Assert.isTrue(q.getId() != null);
+		// Assert.isTrue(q.getTags().get(0).getValue() != null);
+	}
+
+	//TODO: fix me
+	@Ignore
+	@Test
+	public void testUpdateQuestion() throws Exception {
+		RestTemplate restTemplate = new TestRestTemplate();
+		MockRestServiceServer mockServer2 = MockRestServiceServer.createServer(restTemplate);
+		Question q = new Question(question2Text);
+		//TestUtils.expectNLPCalls(q.getQuestionText(), 1, mockServer2);
+		//TestUtils.expectNLPCalls("updated question text blah blah blah", 1, mockServer2);
+		q = kbService.createQuestion(q);
+		Assert.isTrue(q.getId() != null);
+
+		q.setQuestionText("updated question text blah blah blah");
+
+		q = kbService.updateQuestion(q, false);
+
+		mockServer2.verify();
+
+		Question retVal = kbService.getQuestionById(q.getId());
+		Assert.isTrue(retVal.getQuestionText().equals(q.getQuestionText()));
+	}
+
+	@Test
+	public void testDeleteQuestion() throws Exception {
+		response.removeQuestionFromList(q1);
+		kbService.updateResponse(response);
+		kbService.deleteQuestion(q1);
+
+		Assert.isTrue(kbService.getQuestionById(q1.getId()) == null);
+	}
+
+	@Test
+	public void testGetQuestionsByAnswerTypeAndCampaignId() throws Exception {
+
+		List<Question> questions = kbService.getQuestionsByAnswerTypeAndCampaignId(q1.getCampaignId(),
+				"PERSON_ORGANIZATION");
+		Assert.isTrue(questions != null);
+		Assert.isTrue(questions.size() == 1);
+		Assert.isTrue(questions.get(0).getResponse().getId() > 0);
+	}
+
+	@Test
+	public void testGetNlpLogAskedQuestionAnswerTypeList() throws Exception {
+		answerTypeJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":\"EXAMPLE\"}";
+		tagJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":[{\"value\":\"president\",\"partOfSpeech\":\"NN\"},{\"value\":\"united states\",\"partOfSpeech\":\"NN\"},{\"value\":\"who\",\"partOfSpeech\":\"JJS\"}]}";
+		// tags
+		Set<Tag> tags = new HashSet<>();
+		tags.add(new Tag("president", POS.NN));
+		tags.add(new Tag("russia", POS.NN));
+		tags.add(new Tag("run", POS.JJ));
+		responseRank = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":{\"response\":\"how are you\",\"rank\":\"0.1\"}}";
+		Question q = kbBuilder.withResponse(true).build(question2Text, mockRestTemplate, 1,
+				answerTypeJson, tagJson, responseRank, campaignId, tags);
+
+		// mock for ask question
+		mockServer = MockRestServiceServer.createServer(mockRestTemplate);
+		TestUtils.expectNLPCalls(question2Text, 1, answerTypeJson, tagJson, responseRank, mockServer);
+
+		kbService.processSentenceFromClient(q.getCampaignId(), question2Text, 1000L); //so row gets added to nlpLog
+		List<String> nlpLogAnswerTypeList = kbService.getNlpLogAskedQuestionAnswerTypeList();
+		Assert.isTrue(nlpLogAnswerTypeList != null);
+		Assert.isTrue(nlpLogAnswerTypeList.size() > 0);
+	}
+
+	@Test
+	public void testAskQuestionMatchedResponse() throws Exception {
+		answerTypeJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":\"PERSON_ORGANIZATION\"}";
+		tagJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":[{\"value\":\"president\",\"partOfSpeech\":\"NN\"},{\"value\":\"united states\",\"partOfSpeech\":\"NN\"},{\"value\":\"who\",\"partOfSpeech\":\"JJS\"}]}";
+		responseRank = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":{\"response\":\"how are you\",\"rank\":\"0.1\"}}";
+		Set<Tag> tags = new HashSet<>();
+		tags.add(new Tag("president", POS.NN));
+		tags.add(new Tag("united states", POS.NN));
+		tags.add(new Tag("who", POS.JJS));
+
+		Question q = kbBuilder.withResponse(true).build(question2Text, mockRestTemplate, 1,
+				answerTypeJson, tagJson, responseRank, campaignId, tags);
+		Response r = q.getResponse();
+
+		// mock for ask question
+		mockServer = MockRestServiceServer.createServer(mockRestTemplate);
+		TestUtils.expectNLPCalls(question2Text, 1, answerTypeJson, tagJson, responseRank, mockServer);
+
+		Response retVal = kbService.processSentenceFromClient(campaignId, question2Text, null);
+		Assert.isTrue(retVal != null);
+		Assert.isTrue(retVal.equals(r));
+		// Assert.isTrue(retVal.getName().equals(r.getName()));
+	}
+
+	@Test
+	public void testSearchNlpLogAsHitNotAssigned() throws Exception {
+		List<RankedQuestion> rankedQuestions = new ArrayList<>();
+		Set<Tag> tags = new HashSet<>();
+		tags.add(new Tag("Monday", POS.NN));
+		tags.add(new Tag("Question", POS.NN));
+		tags.add(new Tag("fun", POS.JJS));
+		Question q2 = new Question("Why is this a question to not use again?");
+		q2.setId(9998L);
+		q2.setTags(tags);
+		Question q3 = new Question("Why are Monday's no fun to not use this again as well?");
+		q3.setId(9997L);
+		q3.setTags(tags);
+		rankedQuestions.add(new RankedQuestion(q2, 3.0));
+		rankedQuestions.add(new RankedQuestion(q3, 2.0));
+		NlpLog nlpLog = new NlpLog(campaignId, q1.getQuestionText(),
+				q1.getIntent(), response.getId(), StaticThresholdProvider.getThresholdByKey(campaignId, StaticThresholdProvider.THRESHOLD_NLP), Boolean.FALSE, ZonedDateTime.now());
+
+		nlpLog.createAskedQuestionTagsString(q1.getTags());
+		nlpLog.createRankedQuestionList(rankedQuestions);
+		nlpLog.createResponseDetailList(response.getResponseDetails());
+		nlpLog.getResponseTextFromResponse(response);
+		nlpLog = kbService.createNlpLog(nlpLog);
+		//Now retrieve
+		Page<NlpLog> nlpLogPage = kbService.searchNlpLog(campaignId, q1.getQuestionText(), "Hit", "No",
+				"PERSON_ORGANIZATION",
+				LocalDate.now().minusDays(1),
+				LocalDate.now().plusDays(2),
+				new PageRequest(0, 20));
+
+		Assert.isTrue(nlpLogPage != null);
+		Assert.isTrue(nlpLogPage.getContent().size() > 0, "Page has zero NlpLogs");
+		NlpLog retrievedNLPLog = nlpLogPage.getContent().get(0);
+		Assert.isTrue(retrievedNLPLog.getAskedQuestion() != null);
+		Assert.isTrue(retrievedNLPLog.getAskedQuestion().equals(q1.getQuestionText()));
+	}
+
+	@Test
+	public void testUpdateCampaign() {
+		Long campaignId = 11111L;
+		kbService.addCampaign(campaignId);
+		Campaign campaign = new Campaign();
+		campaign.setId(campaignId);
+		SchedulerSettings settings = new SchedulerSettings();
+		settings.setSchedulerServiceEnabled(true);
+		campaign = kbService.addSchedulerSettingsToCampaign(campaignId, settings);
+		Assert.notNull(campaign);
+		Assert.isTrue(campaign.getSchedulerSettings().isSchedulerServiceEnabled());
+	}
+
+	@Test
+	public void testRandomResponse() throws UnsupportedEncodingException, InterruptedException {
+		answerTypeJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":\"PERSON_ORGANIZATION\"}";
+		tagJson = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":[{\"value\":\"president\",\"partOfSpeech\":\"NN\"},{\"value\":\"united states\",\"partOfSpeech\":\"NN\"},{\"value\":\"who\",\"partOfSpeech\":\"JJS\"}]}";
+		responseRank = "{\"message\":null,\"uniqueId\":null,\"explicitDismissal\":false,\"notificationType\":null,\"userStale\":false,\"payload\":{\"response\":\"how are you\",\"rank\":\"0.1\"}}";
+		Set<Tag> tags = new HashSet<>();
+		tags.add(new Tag("president", POS.NN));
+		tags.add(new Tag("united states", POS.NN));
+		tags.add(new Tag("who", POS.JJS));
+
+		Question randomQuestion = new Question("check for random " + 123947);
+		randomQuestion.setCampaignId(campaignId);
+		randomQuestion.setTags(tags);
+		randomQuestion.setIntent("INFORMATION");
+
+		Response response = new Response("random" + 912734, campaignId, false);
+		ResponseDetail rd0t = new ResponseDetail("text", 0, "random text 0");
+		ResponseDetail rd0m = new ResponseDetail("media", 0, "random media 0");
+		ResponseDetail rd1t = new ResponseDetail("text", 1, "random text 1");
+		ResponseDetail rd1m = new ResponseDetail("media", 1, "random media 1");
+		ResponseDetail rd2t = new ResponseDetail("text", 2, "random text 2");
+		ResponseDetail rd2m = new ResponseDetail("media", 2, "random media 2");
+		ResponseDetail rd3t = new ResponseDetail("text", 3, "random text 3");
+		ResponseDetail rd3m = new ResponseDetail("media", 3, "random media 3");
+		response.addResponseDetailToList(rd0t);
+		response.addResponseDetailToList(rd0m);
+		response.addResponseDetailToList(rd1t);
+		response.addResponseDetailToList(rd1m);
+		response.addResponseDetailToList(rd2t);
+		response.addResponseDetailToList(rd2m);
+		response.addResponseDetailToList(rd3t);
+		response.addResponseDetailToList(rd3m);
+		randomQuestion.setResponse(response);
+
+		// mock for ask question
+		mockServer = MockRestServiceServer.createServer(mockRestTemplate);
+		TestUtils.expectNLPCalls("check for random " + 123947, 1, answerTypeJson, tagJson, mockServer);
+
+		kbService.createQuestion(randomQuestion);
+		kbService.addQuestionToResponse(response.getId(), randomQuestion);
+		boolean isRandom = false;
+		String previousText = null;
+
+		for (int x = 0; x < 10; x++) {
+			mockServer = MockRestServiceServer.createServer(mockRestTemplate);
+			TestUtils.expectNLPCalls("check for random " + 123947, 1, answerTypeJson, tagJson, responseRank, mockServer);
+			Response retVal = kbService.processSentenceFromClient(campaignId, "check for random " + 123947, null);
+			Assert.isTrue(retVal != null);
+
+			// find out if any of the responses are different, if they are then random is working
+			String responseText = getTextResponseDetails(retVal);
+			Assert.notNull(responseText);
+
+			if (previousText == null) {
+				previousText = responseText;
+			} else {
+				if (!previousText.equals(responseText)) {
+					isRandom = true;
+					break;
+				}
+			}
+
+			Thread.sleep(200);
+		}
+
+		Assert.isTrue(isRandom);
+
+	}
+
+	private String getTextResponseDetails(Response retVal) {
+		if (retVal != null && retVal.getResponseDetails() != null && retVal.getResponseDetails().size() > 0) {
+			for (ResponseDetail detail : retVal.getResponseDetails()) {
+				if (detail.getType().toLowerCase().equals("text")) {
+					return detail.getContent();
+				}
+			}
+		}
+		return null;
+	}
+
+	@Test(expected = TiiBusinessException.class)
+	public void testDuplicateResponse() {
+		Response dupRes = new Response("Creating duplicate response");
+		dupRes.setCampaignId(campaignId);
+		dupRes.setName(response.getName());
+
+		Response res = kbService.createResponse(dupRes);
+
+	}
+
+}
