@@ -1,0 +1,26 @@
+package com.tii.kb;
+
+import com.tii.kb.service.process.ProcessService;
+import org.mockito.Mockito;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.web.client.RestTemplate;
+
+@Import(KBServiceApp.class)
+public class TestKBServiceAppContext {
+
+	// Mock out ProcessService
+	@Bean
+	public ProcessService processService() {
+		return Mockito.mock(ProcessService.class);
+	}
+
+	// Override the RestTemplate with non-loadbalanced to MockRestServer will be use correctly for service calls
+	@Primary
+	@Bean
+	public RestTemplate restTemplate() {
+		return new RestTemplate();
+	}
+
+}
