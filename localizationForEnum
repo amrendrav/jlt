@@ -1,0 +1,13 @@
+@Configuration
+public class LocalizationContext {
+
+	@Bean
+	public MessageSource messageSource() {
+		ResourceBundleMessageSource resourceBundleMessageSource = new ResourceBundleMessageSource();
+		//	UTF-8 is the generic form for ASCII encoded text useful for languages which primarily use the Roman Alphabets (A-Z, etc...).
+		resourceBundleMessageSource.setDefaultEncoding("UTF-8"); //("UTF-32");
+		resourceBundleMessageSource.setBasename("localization/i18n/messages");
+		return resourceBundleMessageSource;
+	}
+	
+}
