@@ -1,0 +1,82 @@
+public enum Messages {
+
+    TEST_HELLO_WORLD("test.hello.world")
+    , TEST_HELLO_0("test.hello.0")
+    , TEST_HELLO_0_1("test.hello.0.1")
+    , TEST_HELLO_0_1_2("test.hello.0.1.2")
+    , TEST_HELLO_0_I_AM_1("test.hello.0.i.am.1")
+    , TEST_MISSING_MESSAGE("test.missing.message") //Never implement this message in the resource bundles
+
+    , BAD_DATA("bad.data")
+    , INVALID_DATA("invalid.data")
+    , PASSWORD_ALREADY_ENCRYPTED("password.already.encrypted")
+    , PASSWORD_SUCCESSFULLY_UPDATED("password.successfully.updated")
+    , USER_SUCCESSFULLY_CREATED("user.created")
+    , USER_SUCCESSFULLY_UPDATED("user.updated")
+    , USER_SUCCESSFULLY_DELETED("user.deleted")
+    , USER_CANNOT_FIND_USER("user.not.found")
+    , USER_NO_RESULTS("user.no.results")
+    , USER_ALREADY_EXISTS("user.exists")
+
+    , PATIENT_LAST_ENGAGEMENT_TIME_SET("patient.lastEngagementTime.set")
+    , PATIENT_LAST_LOGIN_TIME_SET("patient.lastLoginTime.set")
+    , PATIENT_SUCCESSFULLY_SETUP("patient.setup.success")
+
+    , CLIENT_SUCCESSFULLY_CREATED("client.created")
+    , CLIENT_SUCCESSFULLY_UPDATED("client.updated")
+    , CLIENT_NO_RESULTS("client.noclients")
+    , CLIENT_WITH_NAME_ALREADY_EXISTS("client.exists")
+
+    , ADVOCATE_SUCCESSFULLY_CREATED("advocate.created")
+    , ADVOCATE_SUCCESSFULLY_UPDATED("advocate.updated")
+    , ADVOCATE_SUCCESSFULLY_REMOVED("advocate.removed")
+
+    , PATIENT_PROFESSIONAL_SUCCESSFULLY_CREATED("patient.professional.created")
+    , PATIENT_PROFESSIONAL_SUCCESSFULLY_UPDATED("patient.professional.updated")
+    , PATIENT_PROFESSIONAL_SUCCESSFULLY_REMOVED("patient.professional.removed")
+    , PATIENT_PROFESSIONAL_MEDICATION_INSTANCE_ASSOCIATED("patient.professional.medication.instance.associated")
+    , PATIENT_ADVOCATE_REQUIRED("patient.advocate.required")
+    , PATIENT_PROFESSIONAL_REQUIRED("patient.professional.required")
+
+    , MEDICATION_INSTANCE_CREATED("medicationInstance.created")
+    , MEDICATION_INSTANCE_UPDATED("medicationInstance.updated")
+    , MEDICATION_INSTANCE_DELETED("medicationInstance.deleted")
+    , MEDICATION_INSTANCE_NO_RESULTS("medicationInstance.no.results")
+
+    , MEDICATION_HISTORY_LIST_UPDATED("medicationHistory.list.updated")
+
+    , CARE_TEAM_NOTIFICATIONS_CREATED("careTeamNotifications.created")
+    , CARE_TEAM_NOTIFICATIONS_UPDATED("careTeamNotifications.updated")
+    , CARE_TEAM_NOTIFICATION_CREATED("careTeamNotification.created")
+
+    , MEDICATION_LEAFLET_ERROR("medication.leaflet.error")
+    , MEDICATION_LEAFLET_DRUG_NOT_FOUND("medication.leaflet.drug.not.found")
+    , MEDICATION_LEAFLET_FILE_NOT_FOUND("medication.leaflet.file.not.found")
+
+    , LOGGED_OUT("logged.out");
+
+    private final String messageCode;
+
+    /**
+     * The localization file code that will correspond to the enumerated
+     * constant being defined This constant should correspond to the test to be
+     * displayed for maximum readability of the source code
+     * 
+     * @param localizationCode
+     *            : a period separated text which corresponds to the text being
+     *            localized
+     */
+    private Messages(String messageCode) {
+        this.messageCode = messageCode;
+    }
+
+    /**
+     * Returns the raw code which corresponds to the text found in the
+     * localization files
+     * 
+     * @return - String text represented the code in the localization files
+     */
+    public String getCode() {
+        return messageCode;
+    }
+}
