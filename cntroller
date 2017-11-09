@@ -1,0 +1,32 @@
+@RequestMapping(value = "/question", method = RequestMethod.PUT)
+	public ResponseEntity<ApiResponse<Question>> updateQuestion(@RequestBody Question question) {
+
+		LOG.debug("calling updateQuestion()");
+
+		ApiResponse<Question> apiResponse = new ApiResponse<>("Question successfully updated", false,
+				TransmittalMessageLevel.I, kbService.updateQuestion(question, false));
+
+		return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+	}
+
+	@RequestMapping(value = "/question", method = RequestMethod.DELETE)
+	public ResponseEntity<ApiResponse<Boolean>> deleteQuestion(@RequestBody Question question) {
+
+		LOG.debug("calling deleteQuestion()");
+
+		ApiResponse<Boolean> apiResponse = new ApiResponse<>("Question successfully deleted", false,
+				TransmittalMessageLevel.I, kbService.deleteQuestion(question));
+
+		return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+	}
+
+	@RequestMapping(value = "/question/response/remove", method = RequestMethod.PUT)
+	public ResponseEntity<ApiResponse<Question>> removeResponseFromQuestion(@RequestBody Question question) {
+
+		LOG.debug("calling removeResponseFromQuestion() for questionId: " + question.getId());
+
+		ApiResponse<Question> apiResponse = new ApiResponse<>(
+				"The relationship between question and response has been successfully removed.", false,
+				TransmittalMessageLevel.I, kbService.removeResponseFromQuestion(question));
+
+		return new ResponseEntity<>(apiResponse, HttpStatus.OK);
